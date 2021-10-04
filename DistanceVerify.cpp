@@ -1,11 +1,16 @@
 // DistanceVerify.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
-
+#include <opencv2/aruco.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <iostream>
 
 int main()
 {
     std::cout << "Hello World!\n";
+    cv::Mat doomer = cv::imread("doomer.jpg");
+    cv::imshow("lol", doomer);
+    cv::waitKey(0);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
