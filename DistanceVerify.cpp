@@ -8,9 +8,12 @@
 #include <iostream>
 #include <Windows.h>
 #include <cmath>
+#include <fstream>
+
+using namespace std;
 
 
-void setLabel(cv::Mat& im, const std::string label, cv::Point& loc ) {
+void setLabel(cv::Mat& im, const string label, cv::Point& loc ) {
     int fontface = cv::FONT_HERSHEY_SIMPLEX;
     double scale = 1;
     int thickness = 1;
@@ -24,25 +27,62 @@ void setLabel(cv::Mat& im, const std::string label, cv::Point& loc ) {
 }
 
 double distance(double x1, double x2, double y1, double y2) {
-    return std::sqrt(std::pow(x2 - x1, 2) + std::pow(y2 - y1, 2));
+    return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
 }
 
-double computeArea(cv::Point2f a, cv::Point2f b, cv::Point2f c, cv::Point2f d) {
-    double length = distance(a.x, b.x, a.y, b.y);
-    double width = distance(a.x, c.x, a.y, c.y);
+double computeAreaAndScale(cv::Point2f a, cv::Point2f b, cv::Point2f c, cv::Point2f d) {
+    double length = distance(a.x, b.x, a.y, b.y)/10;
+    double width = distance(a.x, c.x, a.y, c.y)/10;
     return length * width;
 }
 
-void calibrator(int& current_state, cv::Mat& im, cv::Point tPos, std::vector<std::vector<cv::Point2f> > corners) {
+void calibrator(int& current_state, cv::Mat& im, cv::Point tPos, vector<vector<cv::Point2f> > corners, map<string, double>& calibVals) {
+    ofstream myfile;
     switch (current_state)
     {
-    case 0: setLabel(im, "Place at closest distance and", tPos);
+    case 1: setLabel(im, "Place at closest distance and", tPos);
         setLabel(im, "press 'A' to save value.", tPos);
         if (GetKeyState('A') & 0x8000/*Check if high-order bit is set (1 << 15)*/)
         {
-            computeArea(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
-            std::cout<< computeArea(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
+            //computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
+            calibVals.insert(pair<string, double>("First", computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3])));
+            current_state++;
         }
+        break;
+    case 2: setLabel(im, "Place at second distance and", tPos);
+        setLabel(im, "press 'B' to save value.", tPos);
+        if (GetKeyState('B') & 0x8000/*Check if high-order bit is set (1 << 15)*/)
+        {
+            //computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
+            calibVals.insert(pair<string, double>("Second", computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3])));
+            current_state++;
+        }
+        break;
+    case 3: setLabel(im, "Place at third distance and", tPos);
+        setLabel(im, "press 'C' to save value.", tPos);
+        if (GetKeyState('C') & 0x8000/*Check if high-order bit is set (1 << 15)*/)
+        {
+            //computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
+            calibVals.insert(pair<string, double>("Third", computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3])));
+            current_state++;
+        }
+        break;
+    case 4: setLabel(im, "Place at farthest distance and", tPos);
+        setLabel(im, "press 'D' to save value.", tPos);
+        if (GetKeyState('D') & 0x8000/*Check if high-order bit is set (1 << 15)*/)
+        {
+            //computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3]);
+            calibVals.insert(pair<string, double>("Fourth", computeAreaAndScale(corners[0][0], corners[0][1], corners[0][2], corners[0][3])));
+            current_state++;
+        }
+        break;
+    case 5:   myfile.open("calibVals.txt", ios::out);
+        myfile << calibVals.at("First") << "\n";
+        myfile << calibVals.at("Second") << "\n";
+        myfile << calibVals.at("Third") << "\n";
+        myfile << calibVals.at("Fourth") << "\n";
+        myfile.close();
+        current_state++;
         break;
     default:
         break;
@@ -50,12 +90,17 @@ void calibrator(int& current_state, cv::Mat& im, cv::Point tPos, std::vector<std
 }
 
 int main() {
+
+    int current_state = 1;
+    cv::Point textPos = cv::Point(25, 25);
+    map<string, double> calibVals;
+
+
     cv::VideoCapture inputVideo;
     inputVideo.open(0);
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
 
-    int current_state = 0;
-    cv::Point textPos = cv::Point(25, 25);
+    //cv::namedWindow("Display", cv::WINDOW_NORMAL);
 
     while (inputVideo.grab()) {
         cv::Mat image, imageCopy;
@@ -63,23 +108,30 @@ int main() {
         image.copyTo(imageCopy);
 
 
-        std::vector<int> ids;
-        std::vector<std::vector<cv::Point2f> > corners;
+        vector<int> ids;
+        vector<vector<cv::Point2f> > corners;
         cv::aruco::detectMarkers(image, dictionary, corners, ids);
 
 
         // if at least one marker detected
-        if (ids.size() > 0) {
+        if (ids.size() > 0 && current_state < 6) {
             cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
-            calibrator(current_state, imageCopy, textPos, corners);
+            calibrator(current_state, imageCopy, textPos, corners, calibVals);
+            rectangle(imageCopy, corners[0][0], corners[0][2],
+                cv::Scalar(0, 0, 0),
+                -1, cv::LINE_8);
         }
-        else {
+        else if (current_state < 6) {
             cv::Point tPos = textPos;
             setLabel(imageCopy, "No markers detected!", tPos);
         }
+        else {
+            cv::Point tPos = textPos;
+            setLabel(imageCopy, "Press ESC to quit.", tPos);
+        }
 
 
-        cv::imshow("out", imageCopy);
+        cv::imshow("Display", imageCopy);
         char key = (char)cv::waitKey(10);
         if (key == 27)
             break;
